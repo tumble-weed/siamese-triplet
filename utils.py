@@ -141,11 +141,14 @@ class FunctionNegativeTripletSelector(TripletSelector):
     and return a negative index for that pair
     """
 
-    def __init__(self, margin, negative_selection_fn, cpu=True):
+    def __init__(self, margin, n_classes,negative_selection_fn, cpu=True):
         super(FunctionNegativeTripletSelector, self).__init__()
         self.cpu = cpu
         self.margin = margin
         self.negative_selection_fn = negative_selection_fn
+        self.class_correlations = np.zeros((n_classes,n_classes))
+        # self.n_samples_seen = np.zeros(n_classes,n_classes)
+        self.n_samples_seen = np.zeros((n_classes))
 
     def get_triplets(self, embeddings, labels):
         if self.cpu:
@@ -162,6 +165,7 @@ class FunctionNegativeTripletSelector(TripletSelector):
             if len(label_indices) < 2:
                 continue
             negative_indices = np.where(np.logical_not(label_mask))[0]
+            classes_of_negatives = labels[negative_indices]
             anchor_positives = list(combinations(label_indices, 2))  # All anchor-positive pairs
             anchor_positives = np.array(anchor_positives)
 
@@ -172,6 +176,9 @@ class FunctionNegativeTripletSelector(TripletSelector):
                 hard_negative = self.negative_selection_fn(loss_values)
                 if hard_negative is not None:
                     hard_negative = negative_indices[hard_negative]
+                    classes_of_hard_negative = classes_of_negatives[hard_negative]
+                    self.class_correlations[label*np.ones_like(classes_of_hard_negative),class_of_hard_negative] += 1
+                    self.n_samples_seen[label] += len(hard_negative)
                     triplets.append([anchor_positive[0], anchor_positive[1], hard_negative])
 
         if len(triplets) == 0:
